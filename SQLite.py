@@ -1,0 +1,473 @@
+# SQL
+import sqlite3
+
+CREATE TABLE Student (
+    ROLL_NO INT PRIMARY KEY,
+    NAME VARCHAR(50),
+    ADDRESS VARCHAR(100),
+    PHONE VARCHAR(15),
+    HEIGHT REAL,
+    AGE INT
+);
+
+
+SELECT x, y
+FROM x 
+LIMIT x
+WHERE
+GROUP BY xx
+HAVING
+ORDER BY score DESC; #order by Age / ACS / DESC
+
+
+
+# select distinct (choosing unique value) specific to Java and Javascipt'
+SELECT DISTINCT score, course
+from geeksforgeeks 
+WHERE course IN ('Java','JavaScript');
+
+
+SELECT COUNT(DISTINCT ReleaseYear) 
+FROM FilmLocations 
+WHERE ProductionCompany="Warner Bros. Pictures";
+
+
+# inserting new row/data
+INSERT INTO table_name (column1, column2, column3) 
+VALUES ( value1, value2, value), 
+(value x, value y, value z);
+
+
+INSERT INTO table_name (column1, column2, ... )
+VALUES (value1, value2, ... )
+;
+
+
+# inserting new column from other table
+INSERT INTO first_table(names_of_columns1) 
+SELECT names_of_columns2 
+FROM second_table; 
+
+# Copy Specific Rows and Insert 
+INSERT INTO table1 
+SELECT * FROM table2 
+WHERE condition; 
+# WHERE x BETWEEN 12 AND 20;
+# WHERE x IS NULL;
+# WHERE X = 'abc';
+# WHERE <> 'abc';           # not equal
+
+# WHERE xcolumn IN ('Abc', 15)
+# WHERE NOT city = 'Bandung' AND city = 'Bali'
+
+
+# calculating something and make a new column
+SELECT X,
+Y,
+Price * Quantity AS new_column_pricetimesquantity
+from xyz
+
+# Aggregate functions statistics: AVG(), COUNT(), MIN(), MAX(), SUM()
+SELECT AVG(Price) AS newcolumn_average_price
+SELECT COUNT (*) AS newcolumn_count     # count only counting for non NULL value
+SELECT COUNT(DISTINCT customerID) FROM xyz      # not counting duplicate data
+
+# Wildcards: searching a specific word in the middle or first/last sentences
+LIKE '%Pizza'
+'Pizza%'
+'%Pizza%'
+'s%@gmail.com'
+
+# for a single letter, use underscore
+WHERE columnname LIKE '_pizza'
+
+
+# GROUP BY and HAVING (combination, cannot use WHERE with GROUP BY)
+GROUP BY CustomerID
+HAVING SUM(Salary) >= 5000 AND AVG(Salary) > 5000;
+
+
+# Update the column NAME and set the value
+# modifying column name etc
+UPDATE Customer # table name
+SET 
+CustomerName = 'abc', 
+Country = 'USA' 
+WHERE CustomerID = 1;
+
+
+SELECT 
+  Extended_Step,
+  Job_Code,
+  Pay_Type
+FROM 
+  salary_range_by_job_classification
+WHERE 
+  Union_Code = '990' AND SetID IN ('SFMTA', 'COMMN');
+
+
+# delete data or specific row
+DELETE FROM GFG_Employees  # table name
+WHERE department = 'Development';
+
+
+# alter
+# ALTER TABLE table_name
+# [ADD | DROP | MODIFY] column_name datatype;
+
+ALTER TABLE table_name
+MODIFY COLUMN column_name datatype; #modifying column datatype
+
+ALTER TABLE table_name
+RENAME COLUMN old_name TO new_name;
+
+ALTER TABLE table_name
+RENAME TO new_table_name;
+
+
+# drop or truncate data
+DROP DATABASE student_data;  # drop the data permanently
+TRUNCATE TABLE Student_details; # truncate table
+
+
+
+
+
+
+
+
+# joining two table: Albums and Tracks
+SELECT 
+    a.AlbumId, #a. or t. is an alias for each table
+    a.Title,
+    COUNT(t.TrackId) AS TrackCount
+FROM 
+    Albums a
+JOIN 
+    Tracks t ON a.AlbumId = t.AlbumId
+GROUP BY 
+    a.AlbumId, a.Title
+HAVING 
+    COUNT(t.TrackId) >= 12;
+
+# inner join
+INNER JOIN # irisan
+
+
+
+
+#1
+SELECT *
+FROM Tracks
+WHERE Milliseconds >= 5000000
+
+#2
+SELECT *
+FROM Invoices
+WHERE Total BETWEEN 5 AND 15
+
+#3
+SELECT *
+FROM Customers
+WHERE State IN ('RJ','DF','AB','BC','CA','WA','NY')
+
+#4
+SELECT *
+FROM Invoices
+WHERE CustomerId IN (56, 58)
+  AND Total BETWEEN 1 AND 5;
+
+#5
+SELECT *
+FROM Tracks
+WHERE Name like 'All%'
+
+#6
+SELECT *
+FROM Customers
+WHERE Email like 'J%@gmail.com'
+
+#7
+SELECT *
+FROM Invoices
+WHERE BillingCity IN ('Brasília', 'Edmonton', 'Vancouver')
+ORDER BY InvoiceId DESC
+
+#8
+SELECT 
+    CustomerId,
+    COUNT(InvoiceId) AS NumberOfOrders
+FROM 
+    Invoices
+GROUP BY 
+    CustomerId
+ORDER BY 
+    NumberOfOrders DESC;
+
+#9
+SELECT 
+    a.AlbumId,
+    a.Title,
+    COUNT(t.TrackId) AS TrackCount
+FROM 
+    Albums a
+JOIN 
+    Tracks t ON a.AlbumId = t.AlbumId
+GROUP BY 
+    a.AlbumId, a.Title
+HAVING 
+    COUNT(t.TrackId) >= 12;
+
+
+
+
+
+
+# example on joining multiple tables
+SELECT 
+    albums.Title AS AlbumTitle,
+    tracks.UnitPrice
+FROM 
+    artists
+JOIN 
+    albums ON artists.ArtistId = albums.ArtistId
+JOIN 
+    tracks ON albums.AlbumId = tracks.AlbumId
+WHERE 
+    artists.Name = 'Audioslave';
+
+# EXAMPLE 2
+SELECT 
+    customers.FirstName,
+    customers.LastName
+FROM 
+    customers
+LEFT JOIN 
+    invoices ON customers.CustomerId = invoices.CustomerId
+WHERE 
+    invoices.InvoiceId IS NULL;
+
+
+# EXAMPLE 3
+SELECT 
+    tracks.Name, tracks.UnitPrice,
+    SUM(tracks.UnitPrice) AS summy
+FROM 
+    albums
+JOIN 
+    tracks ON albums.AlbumId = tracks.AlbumId
+WHERE 
+    albums.Title = 'Big Ones';
+
+# EXAMPLE 4
+SELECT 
+    artists.Name AS Artist,
+    COUNT(albums.AlbumId) AS AlbumCount
+FROM 
+    artists
+JOIN 
+    albums ON artists.ArtistId = albums.ArtistId
+WHERE 
+    artists.Name = 'Led Zeppelin'
+GROUP BY 
+    artists.Name;
+
+
+
+# example 5
+SELECT 
+    c.FirstName || ' ' || c.LastName AS FullName,
+    c.City,
+    c.Email,
+    COUNT(i.InvoiceId) AS TotalInvoices
+FROM 
+    Customers c
+JOIN 
+    Invoices i ON c.CustomerId = i.CustomerId
+GROUP BY 
+    c.CustomerId, c.FirstName, c.LastName, c.City, c.Email;
+
+
+# example 6
+SELECT 
+    t.Name AS TrackName,
+    a.Title AS AlbumTitle,
+    ar.ArtistId,
+    t.TrackId
+FROM 
+    Tracks t
+JOIN 
+    Albums a ON t.AlbumId = a.AlbumId
+JOIN 
+    Artists ar ON a.ArtistId = ar.ArtistId;
+
+
+# example 7
+SELECT 
+    c.CustomerId,
+    c.FirstName,
+    c.LastName,
+    c.City AS CustomerCity,
+    i.BillingCity
+FROM 
+    Customers c
+JOIN 
+    Invoices i ON c.CustomerId = i.CustomerId
+WHERE 
+    c.City <> i.BillingCity;
+
+
+
+
+
+
+
+
+
+
+# showing data for specific date/ hour
+import sqlite3
+import pandas as pd
+
+# Connect or create
+conn = sqlite3.connect("mydata.db")
+cursor = conn.cursor()
+
+# Create table
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS measurements (
+    timestamp TEXT,
+    value REAL
+)
+""")
+
+# Insert example data
+sample_data = [
+    ("2023-01-01 00:00:00", 10.5),
+    ("2023-01-01 00:15:00", 12.2),
+    ("2023-01-01 00:30:00", 11.7),
+    ("2023-01-02 12:00:00", 13.5),
+    ("2023-01-02 12:15:00", 13.9),
+    ("2023-01-03 08:30:00", 14.2)
+]
+cursor.executemany("INSERT INTO measurements VALUES (?, ?)", sample_data)
+conn.commit()
+
+# for specific date
+specific_date = '2023-01-02'
+
+query = """
+SELECT *
+FROM measurements
+WHERE DATE(timestamp) = ?
+"""
+
+df = pd.read_sql_query(query, conn, params=(specific_date,))
+print(df)
+
+# for a range of data
+start = '2023-01-02 12:00:00'
+end = '2023-01-02 12:30:00'
+
+query = """
+SELECT *
+FROM measurements
+WHERE timestamp BETWEEN ? AND ?
+"""
+
+df = pd.read_sql_query(query, conn, params=(start, end))
+print(df)
+
+
+# -- (Double hyphen) for single-line comments:
+# /* This is a 
+#   multi-line comment */
+
+# If you are working with Python and SQLite3, you might see triple quotes (""" """ or ''' ''').
+
+
+
+
+# using SUBSTR to split a word
+SELECT
+  FirstName,
+  LastName,
+  LOWER(SUBSTR(FirstName, 1, 4) || SUBSTR(LastName, 1, 2)) AS EmployeeUserID
+FROM employees;
+
+
+# Show a list of employees who have worked for the company for 15 or more years using the current date function. Sort by lastname ascending.
+SELECT 
+  FirstName,
+  LastName,
+  HireDate,
+  CAST((JULIANDAY(CURRENT_DATE) - JULIANDAY(HireDate)) / 365 AS INTEGER) AS YearsWorked
+FROM 
+  employees
+WHERE 
+  (JULIANDAY(CURRENT_DATE) - JULIANDAY(HireDate)) / 365 >= 15
+ORDER BY 
+  LastName ASC;
+
+
+
+
+# counting null in a column
+SELECT 
+  SUM(CASE WHEN FirstName IS NULL THEN 1 ELSE 0 END) AS FirstName_NULLs,
+  SUM(CASE WHEN LastName IS NULL THEN 1 ELSE 0 END) AS LastName_NULLs,
+  SUM(CASE WHEN Company IS NULL THEN 1 ELSE 0 END) AS Company_NULLs,
+  SUM(CASE WHEN Address IS NULL THEN 1 ELSE 0 END) AS Address_NULLs,
+  SUM(CASE WHEN City IS NULL THEN 1 ELSE 0 END) AS City_NULLs,
+  SUM(CASE WHEN State IS NULL THEN 1 ELSE 0 END) AS State_NULLs,
+  SUM(CASE WHEN Country IS NULL THEN 1 ELSE 0 END) AS Country_NULLs,
+  SUM(CASE WHEN PostalCode IS NULL THEN 1 ELSE 0 END) AS PostalCode_NULLs,
+  SUM(CASE WHEN Phone IS NULL THEN 1 ELSE 0 END) AS Phone_NULLs,
+  SUM(CASE WHEN Email IS NULL THEN 1 ELSE 0 END) AS Email_NULLs
+FROM Customers;
+
+# combining several some columns
+SELECT 
+  FirstName,
+  LastName,
+  InvoiceId,
+  InvoiceId || '-' || FirstName || '-' || LastName AS NewCustomerInvoiceID
+FROM 
+  Customers
+JOIN 
+  Invoices ON Customers.CustomerId = Invoices.CustomerId
+ORDER BY 
+  FirstName, LastName, InvoiceId;
+
+
+
+
+
+
+
+
+
+
+
+
+# showing all tables name and its columns name
+import sqlite3
+
+# Connect to database
+conn = sqlite3.connect('your_database.db')
+cursor = conn.cursor()
+
+# Get all table names
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+tables = cursor.fetchall()
+
+# Print tables and their columns
+for table_name in tables:
+    table = table_name[0]
+    print(f"Table: {table}")
+    
+    cursor.execute(f"PRAGMA table_info({table})")   
+    columns = cursor.fetchall()
+    
+    for col in columns:
+        print(f"  Column: {col[1]} ({col[2]})")  # name and type
