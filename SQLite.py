@@ -1,3 +1,43 @@
+import sqlite3  # Import the sqlite3 library
+
+def connect_db():
+    """Connect to the SQLite database."""
+    return sqlite3.connect("trades.sqlite")
+
+def list_tables():
+    """List all tables in the database."""
+    connection = connect_db()
+    cursor = connection.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = [table[0] for table in cursor.fetchall()]  # Extract table names
+    connection.close()
+    return tables
+
+def list_columns(table_name):
+    """List all column names from a specific table."""
+    connection = connect_db()
+    cursor = connection.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")  # Get table info
+    columns = [column[1] for column in cursor.fetchall()]  # Extract column names
+    connection.close()
+    return columns
+
+
+# output print column name
+tables = list_tables()
+print("Tables in the database:", tables)
+
+# print columns name
+if tables:
+    for table in tables:
+        columns = list_columns(table)
+        print(f"\n📌 Columns in table '{table}': {columns}")
+
+
+
+
+
+
 # SQL
 import sqlite3
 
