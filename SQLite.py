@@ -1,3 +1,27 @@
+SELECT
+  TIMESTAMP_TRUNC(delivery_start__utc_, HOUR) AS hour,
+  SUM(CASE
+    WHEN direction = 'BUY' THEN -volume__mw_ * price__unit_per_mwh_
+    WHEN direction = 'SELL' THEN volume__mw_ * price__unit_per_mwh_
+    ELSE 0
+  END) AS pnl
+FROM flex-power.domain.bidding__auctions_market_results_portfolios_incremental
+WHERE $__timeFilter(delivery_start__utc_)
+  AND segment = 'DAY-AHEAD'
+  AND counterparty = 'EPEX'
+  AND granularity = 'HOURLY'
+GROUP BY hour
+ORDER BY hour DESC;
+
+# SELECT TIMESTAMP_TRUNC(delivery_start__utc_, DAY) AS day,
+
+
+SELECT * FROM flex-power.domain.bidding__auctions_market_results_portfolios_incremental WHERE $__timeFilter(delivery_start__utc_)
+
+
+
+
+
 import sqlite3  # Import the sqlite3 library
 
 def connect_db():
