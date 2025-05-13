@@ -512,7 +512,7 @@ df.notna().sum()                 # Count non-NaN values
 
 df.dropna()                      # Drop all rows with any NaNs
 df.dropna(subset=['col1'])      # Drop rows where 'col1' is NaN
-df.fillna(0)                     # Replace all NaNs with 0
+df.fillna(0, inplace = True)                     # Replace all NaNs with 0
 df['col'].fillna(df['col'].mean())  # Fill NaN with column mean
 
 df.rename(columns={'old': 'new'}, inplace=True)  # Rename columns
