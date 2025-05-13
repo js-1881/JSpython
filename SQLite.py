@@ -2,7 +2,9 @@ SELECT * FROM `flex-power.domain.bidding__auctions_market_results_portfolios_inc
 WHERE $__timeFilter(delivery_start__utc_) AND segment = 'DAY-AHEAD' AND counterparty = 'EPEX' AND granularity = 'HOURLY'
 LIMIT 50
 
-
+SELECT * FROM `flex-power.domain.bidding__auctions_market_results` 
+WHERE $__timeFilter(delivery_start__utc_)
+ORDER BY delivery_start__utc_ ASC 
 
 
 
@@ -18,9 +20,13 @@ AVG(price__unit_per_mwh_) AS dayaheadprice_avg,
 # delivery_start__utc_, delivery_end__utc_, price__unit_per_mwh_, price_unit, volume__mw_, direction, segment, granularity
 FROM `flex-power.domain.bidding__auctions_market_results` 
 # `flex-power.domain.bidding__auctions_market_results_portfolios_incremental` 
-WHERE $__timeFilter(delivery_start__utc_) AND segment = 'DAY-AHEAD' AND counterparty = 'EPEX' AND granularity = 'HOURLY' AND delivery_area IN ('FIFTYHERTZ', 'TENNET')
+WHERE $__timeFilter(delivery_start__utc_) AND segment = 'DAY-AHEAD' AND counterparty = 'EPEX' AND granularity = 'HOURLY' AND delivery_area IN ('FIFTYHERTZ', 'TENNET') AND portfolio = 'TOTAL'
 GROUP BY hour
 ORDER BY hour DESC;
+
+
+
+
 
 
 
