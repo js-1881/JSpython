@@ -1,3 +1,44 @@
+SELECT * FROM `flex-power.domain.bidding__auctions_market_results_portfolios_incremental` 
+WHERE $__timeFilter(delivery_start__utc_) AND segment = 'DAY-AHEAD' AND counterparty = 'EPEX' AND granularity = 'HOURLY'
+LIMIT 50
+
+
+
+
+
+SELECT 
+TIMESTAMP_TRUNC(delivery_start__utc_, HOUR) AS hour,
+SUM (CASE
+  WHEN direction = 'BUY' THEN -volume__mw_
+  WHEN direction = 'SELL' THEN volume__mw_
+  ELSE 0
+END) AS volumeMWbuysell,
+SUM (volume__mw_) AS volume_mw_sum,
+AVG(price__unit_per_mwh_) AS dayaheadprice_avg,
+# delivery_start__utc_, delivery_end__utc_, price__unit_per_mwh_, price_unit, volume__mw_, direction, segment, granularity
+FROM `flex-power.domain.bidding__auctions_market_results` 
+# `flex-power.domain.bidding__auctions_market_results_portfolios_incremental` 
+WHERE $__timeFilter(delivery_start__utc_) AND segment = 'DAY-AHEAD' AND counterparty = 'EPEX' AND granularity = 'HOURLY' AND delivery_area IN ('FIFTYHERTZ', 'TENNET')
+GROUP BY hour
+ORDER BY hour DESC;
+
+
+
+
+
+
+
+
+SELECT  delivery_start__utc_, delivery_end__utc_, price__unit_per_mwh_, price_unit, volume__mw_, direction, segment
+FROM `flex-power.domain.bidding__auctions_market_results_portfolios_incremental` 
+# `flex-power.domain.bidding__auctions_market_results`
+WHERE $__timeFilter(delivery_start__utc_) AND segment = 'DAY-AHEAD'
+LIMIT 50 
+
+
+
+
+
 SELECT
   TIMESTAMP_TRUNC(delivery_start__utc_, HOUR) AS hour,
   SUM(CASE
@@ -19,6 +60,12 @@ ORDER BY hour DESC;
 SELECT * FROM flex-power.domain.bidding__auctions_market_results_portfolios_incremental WHERE $__timeFilter(delivery_start__utc_)
 
 
+SELECT column_name
+FROM `flex-power.domain.INFORMATION_SCHEMA.COLUMNS`
+WHERE table_name = 'bidding__auctions_market_results_portfolios_incremental';
+
+SELECT DISTINCT delivery_area
+FROM flex-power.domain.bidding__auctions_market_results_portfolios_incremental;
 
 
 
