@@ -1,0 +1,58 @@
+with combine_asset as (
+  SELECT *,
+  EXTRACT(HOUR FROM Datetime) AS houroftheday,
+  EXTRACT(MONTH FROM Datetime) AS month,
+  EXTRACT(DAY FROM Datetime) AS day,
+  GREATEST(Active_power_MWh, 0) AS Active_power_MWh_filled
+  FROM flex-power.playground_sales.df_combined
+),
+
+DAprice as (
+  SELECT *,
+  EXTRACT(HOUR FROM hour) AS houroftheday,
+  EXTRACT(MONTH FROM hour) AS month,
+  EXTRACT(DAY FROM hour) AS day
+
+FROM flex-power.playground_sales.Dayaheadprice
+WHERE hour >= '2024-01-01' AND hour < '2025-01-01'
+),
+
+RMVprice as (
+  SELECT *
+  FROM flex-power.playground_sales.df_RMV
+),
+
+
+fulldata as (
+SELECT
+  t.Datetime,
+  t.Active_power_MWh,
+  p.*,
+  r.*
+FROM combine_asset t
+LEFT JOIN DAprice p
+ON t.day = p.day AND t.month = p.month AND t.houroftheday = p.houroftheday
+LEFT JOIN RMVprice r
+  ON t.month = r.month
+),
+
+
+
+spot_payout as (
+SELECT
+  houroftheday,
+  day,
+  Active_power_MWh,
+  RMV_2024_EURMWh,
+  (Active_power_MWh * dayaheadprice) AS PayOut_HourlySpot,
+  (RMV_2024_EURMWh * Active_power_MWh) AS Payout_HourlySpot
+  FROM fulldata
+)
+
+
+
+
+SELECT *
+from fulldata
+WHERE Datetime >= '2019-01-01' AND Datetime < '2020-01-01'
+ORDER BY Datetime
