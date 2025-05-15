@@ -40,19 +40,22 @@ LEFT JOIN RMVprice r
 
 spot_payout as (
 SELECT
+  Datetime,
   houroftheday,
   day,
+  month,
   Active_power_MWh,
   RMV_2024_EURMWh,
   (Active_power_MWh * dayaheadprice) AS PayOut_HourlySpot,
   (RMV_2024_EURMWh * Active_power_MWh) AS Payout_HourlySpot
   FROM fulldata
+  GROUP BY houroftheday, day, month
 )
 
 
 
 
 SELECT *
-from fulldata
+FROM spot_payout
 WHERE Datetime >= '2019-01-01' AND Datetime < '2020-01-01'
 ORDER BY Datetime
