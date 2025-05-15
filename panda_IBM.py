@@ -17,7 +17,10 @@ Average diff: 15.835 EUR/MWh
 ❗❗ Our asset has HIGHER RMV in yearly average ❗❗
 
 
-  
+# does our asset receive a market premium?
+# If our asset has a lower local RMV (Asset RMV < Germany RMV), we need to impose a structure fee, in addition to balancing fee
+
+
 
 import pandas as pd
 data = {
