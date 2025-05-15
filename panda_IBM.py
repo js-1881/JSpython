@@ -1,3 +1,25 @@
+📈 Sum payout SPOT yearly: 2149198.701 EUR
+📉 Min payout SPOT: -471.938 EUR
+📈 Max payout SPOT: 5581.165 EUR
+
+
+
+📈 Sum payout RMV yearly: 1714919.523 EUR
+📉 Min payout RMV: -4.796 EUR
+📈 Max payout RMV: 960.835 EUR
+
+💰 Net Difference (SPOT - RMV): 434279.178 EUR
+✅ SPOT payout is higher than RMV payout.
+
+
+Asset Local RMV yearly: 79.638 EUR/MWh
+Average GERMANY RMV yearly: 62.082 EUR/MWh
+Average diff: 15.842 EUR/MWh
+❗❗ Our asset has higher RMV in yearly average ❗❗
+
+
+  
+
 import pandas as pd
 data = {
   "calories": [420, 380, 390],
