@@ -18,7 +18,14 @@ Average diff: 15.835 EUR/MWh
 
 
 # does our asset receive a market premium?
-# If our asset has a lower local RMV (Asset RMV < Germany RMV), we need to impose a structure fee, in addition to balancing fee
+# If our asset has a lower local RMV (Asset RMV < Germany RMV), we need to impose a structure fee, in addition to a balancing fee
+
+# in our case, our asset has a higher average worth value than Germany RMV
+
+90 euro subsidy
+premium = subsidy - RMV Germany
+
+
 
 
 
