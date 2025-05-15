@@ -1,3 +1,9 @@
+SELECT * FROM `flex-power.playground_sales.historicaldata_yield_WEA_3`
+ORDER BY Datetime
+
+
+
+
 SELECT * FROM `flex-power.domain.bidding__auctions_market_results_portfolios_incremental` 
 WHERE $__timeFilter(delivery_start__utc_) AND segment = 'DAY-AHEAD' AND counterparty = 'EPEX' AND granularity = 'HOURLY'
 LIMIT 50
