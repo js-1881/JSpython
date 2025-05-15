@@ -1,6 +1,97 @@
 SELECT * FROM `flex-power.playground_sales.historicaldata_yield_WEA_3`
 ORDER BY Datetime
 
+common table expression
+
+SELECT 
+  TIMESTAMP_TRUNC(
+    DATETIME(TIMESTAMP(delivery_start__utc_), "Europe/Berlin"),
+    HOUR
+  ) AS hour,
+
+  SUM(volume__mw_) AS volumeMW,
+  AVG(price__unit_per_mwh_) AS dayaheadprice
+
+FROM `flex-power.domain.bidding__auctions_market_results`
+
+WHERE segment = 'DAY-AHEAD'
+  AND counterparty = 'EPEX'
+  AND granularity = 'HOURLY'
+  AND delivery_area IN ('FIFTYHERTZ', 'TENNET')
+  AND portfolio = 'TOTAL'
+
+GROUP BY hour
+ORDER BY hour DESC;
+
+
+
+
+
+with combine_asset as (
+  SELECT *,
+  EXTRACT(HOUR FROM Datetime) AS houroftheday_asset,
+  EXTRACT(MONTH FROM Datetime) AS month_asset,
+  EXTRACT(DAY FROM Datetime) AS day_asset,
+  GREATEST(Active_power_MWh, 0) AS Active_power_MWh_filled
+  
+FROM flex-power.playground_sales.df_combined
+),
+
+DAprice as (
+  SELECT *,
+  EXTRACT(HOUR FROM hour) AS houroftheday_p,
+  EXTRACT(MONTH FROM hour) AS month_p,
+  EXTRACT(DAY FROM hour) AS day_p
+
+FROM flex-power.playground_sales.Dayaheadprice
+WHERE hour >= '2024-01-01' AND hour < '2025-01-01'
+),
+
+RMVprice as (
+  SELECT *
+  FROM flex-power.playground_sales.df_RMV
+)
+
+
+SELECT
+  t.Datetime,
+  t.Active_power_MWh,
+  p.*,
+  r.*
+FROM combine_asset t
+LEFT JOIN DAprice p
+ON t.day_asset = p.day_p AND t.month_asset = p.month_p AND t.houroftheday_asset = p.houroftheday_p
+LEFT JOIN RMVprice r
+  ON t.month_asset = r.Month
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
