@@ -43,6 +43,15 @@ print(dfprice_2024[(dfprice_2024['day'] == 23) & (dfprice_2024['month'] == 7)][[
 
 
 
+print(df_merge_2024.isna().sum())
+print(df_merge_2024.head())
+
+print(df_merge_2024[(df_merge_2024['day'] == 23) & (df_merge_2024['month'] == 6)][['day', 'month', 'houroftheday', 'dayaheadprice']].drop_duplicates().sort_values('houroftheday'))
+print(df_merge_2024[(df_merge_2024['day'] == 31) & (df_merge_2024['month'] == 3)][['day', 'month', 'houroftheday', 'dayaheadprice']].drop_duplicates().sort_values('houroftheday'))
+print(df_combined[(df_merge_2024['day'] == 31) & (df_combined['month'] == 3)][['day', 'month', 'houroftheday', 'Active_power_MWh']].drop_duplicates().sort_values('houroftheday').head(50))
+
+
+
 
 
 
