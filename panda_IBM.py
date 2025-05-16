@@ -29,6 +29,27 @@ premium = subsidy - RMV Germany
 
 
 
+
+# showing rows/index that has null values on dayaheadprice
+missing = df_merged_12[df_merged_12['dayaheadprice'].isna()]
+print(missing[['day', 'month', 'houroftheday', 'dayaheadprice']].drop_duplicates())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import pandas as pd
 data = {
   "calories": [420, 380, 390],
