@@ -6,6 +6,12 @@ SELECT * FROM `flex-power.domain.dso__infeed_and_offtake__measured_per_meter_poi
 WHERE malo = '50428026534'
 ORDER BY delivery_start__utc_ DESC
 
+SELECT 
+  *,
+  DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin') AS delivery_start__cets
+FROM `flex-power.domain.dso__infeed_and_offtake__measured_per_meter_point_latest` 
+WHERE malo = '50428026534'
+ORDER BY delivery_start__utc_ ASC
 
 
 truestedt
