@@ -34,6 +34,11 @@ premium = subsidy - RMV Germany
 missing = df_merged_12[df_merged_12['dayaheadprice'].isna()]
 print(missing[['day', 'month', 'houroftheday', 'dayaheadprice']].drop_duplicates())
 
+# For df_combined
+print(df_combined[(df_combined['day'] == 23) & (df_combined['month'] == 6)][['day', 'month', 'houroftheday']].drop_duplicates().sort_values('houroftheday'))
+
+# For dfprice_2024
+print(dfprice_2024[(dfprice_2024['day'] == 23) & (dfprice_2024['month'] == 7)][['day', 'month', 'houroftheday', 'dayaheadprice']].drop_duplicates().sort_values('houroftheday'))
 
 
 
