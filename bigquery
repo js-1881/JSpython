@@ -8,6 +8,15 @@ with combine_asset as (
   FROM flex-power.playground_sales.df_combined
 ),
 
+combine_asset_sum as (
+  SELECT Datetime, houroftheday,
+  month,
+  day,
+  SUM (Active_power_MWh_filled) as ACTIVE_POWER_SUM
+  from combine_asset
+  GROUP BY Datetime, day, month, houroftheday
+),
+
 DAprice as (
   SELECT *,
   EXTRACT(HOUR FROM hour) AS houroftheday,
@@ -27,12 +36,12 @@ RMVprice as (
 fulldata_temp as (
 SELECT
   t.Datetime,
-  t.Active_power_MWh,
+  t.ACTIVE_POWER_SUM,
   t.houroftheday,
   t.day,
   t.month,               -- use t.month instead of p.month
   p.dayaheadprice
-FROM combine_asset t
+FROM combine_asset_sum t
 LEFT JOIN DAprice p
 ON t.day = p.day AND t.month = p.month AND t.houroftheday = p.houroftheday
 ),
@@ -41,7 +50,7 @@ ON t.day = p.day AND t.month = p.month AND t.houroftheday = p.houroftheday
 fulldata AS (
   SELECT
     a.Datetime,
-    a.Active_power_MWh,
+    a.ACTIVE_POWER_SUM,
     a.houroftheday,
     a.day,
     a.month,
@@ -59,11 +68,11 @@ SELECT
   houroftheday,
   day,
   month,
-  Active_power_MWh,
+  ACTIVE_POWER_SUM,
   dayaheadprice,
   RMV_2024_EURMWh,
-  (Active_power_MWh * dayaheadprice) AS PayOut_HourlySpot,
-  (RMV_2024_EURMWh * Active_power_MWh) AS Payout_RMV,
+  (ACTIVE_POWER_SUM * dayaheadprice) AS PayOut_HourlySpot,
+  (RMV_2024_EURMWh * ACTIVE_POWER_SUM) AS Payout_RMV,
   FROM fulldata
   WHERE Datetime >= '2019-01-01' AND Datetime < '2020-01-01'
 ),
@@ -86,6 +95,7 @@ GROUP BY GROUPING SETS ((month), ())
 ORDER BY month
 
 
-
-
-
+ /* 
+SELECT * FROM spot_payout
+ORDER BY Datetime
+*/
