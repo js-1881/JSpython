@@ -28,8 +28,10 @@ fulldata_temp as (
 SELECT
   t.Datetime,
   t.Active_power_MWh,
-  p.*
-
+  t.houroftheday,
+  t.day,
+  t.month,               -- use t.month instead of p.month
+  p.dayaheadprice
 FROM combine_asset t
 LEFT JOIN DAprice p
 ON t.day = p.day AND t.month = p.month AND t.houroftheday = p.houroftheday
@@ -75,9 +77,12 @@ spot_payout_group AS (
   GROUP BY month
 )
 
-
-SELECT *
-FROM spot_payout
+SELECT 
+  month,
+  SUM(total_spot_payout) AS total_spot_payout,
+  SUM(total_rmv_payout) AS total_rmv_payout
+FROM spot_payout_group
+GROUP BY GROUPING SETS ((month), ())
 ORDER BY month
 
 
