@@ -42,7 +42,7 @@ print(dfprice_2024[(dfprice_2024['day'] == 23) & (dfprice_2024['month'] == 7)][[
 
 
 
-
+# checking missing data when shifting from winter to summer time
 print(df_merge_2024.isna().sum())
 print(df_merge_2024.head())
 
