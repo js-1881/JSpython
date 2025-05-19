@@ -1,3 +1,4 @@
+with monthly_produce_meter AS (
 SELECT 
   malo,
   EXTRACT(MONTH FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS month,
@@ -8,9 +9,54 @@ SELECT
   
 FROM `flex-power.domain.dso__infeed_and_offtake__measured_per_meter_point_latest` 
 GROUP BY malo, month, year
-ORDER BY month
-LIMIT 100
-  
+),
+
+
+unique_malo_temp as (
+SELECT 
+    malo,
+    park_id,
+    technology,
+    balancing_type,
+    tso,
+    contract_id,
+    FIRST_VALUE(name) OVER (PARTITION BY malo ORDER BY name) AS name,
+    FIRST_VALUE(unit_id) OVER (PARTITION BY malo ORDER BY unit_id) AS unit_id
+  FROM `flex-power.domain.crm__assets__upgrid_units`
+),
+
+
+unique_malo as (
+SELECT DISTINCT malo, park_id, technology, balancing_type, tso, contract_id, name, unit_id
+FROM unique_malo_temp
+),
+
+
+monthly_produce_meter_park as (
+SELECT
+  a.*,
+  b.park_id,
+  b.technology,
+  b.balancing_type,
+  b.tso,
+  b.contract_id,
+  b.name,
+  b.unit_id
+FROM monthly_produce_meter a
+LEFT JOIN unique_malo b
+ON a.malo = b.malo
+)
+
+
+SELECT *
+FROM monthly_produce_meter_park
+ORDER BY year, month
+
+
+
+
+
+
 
 
 
