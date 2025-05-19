@@ -1,3 +1,28 @@
+SELECT 
+  malo,
+  EXTRACT(MONTH FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS month,
+  EXTRACT(YEAR FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS year,
+  SUM(measured_power__kw_ * 0.25) AS monthly_energy_kWh,
+  SUM(measured_power__kw_ * 0.25 / 1000) AS monthly_energy_MWh
+
+  
+FROM `flex-power.domain.dso__infeed_and_offtake__measured_per_meter_point_latest` 
+GROUP BY malo, month, year
+ORDER BY month
+LIMIT 100
+  
+
+
+
+
+
+
+
+
+
+
+
+
 with combine_asset as (
   SELECT *,
   EXTRACT(HOUR FROM Datetime) AS houroftheday,
@@ -99,3 +124,21 @@ ORDER BY month
 SELECT * FROM spot_payout
 ORDER BY Datetime
 */
+
+
+
+
+
+
+
+
+,
+
+
+DAprice_RMV AS (
+  SELECT
+  d.*,
+  r.
+
+
+)
