@@ -1,0 +1,97 @@
+WITH rmv_data AS (
+  SELECT
+    EXTRACT(YEAR FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS year,
+    EXTRACT(MONTH FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS month,
+    CASE 
+      WHEN technology = 'SOLAR' THEN 'PV'
+      WHEN technology = 'WIND_ONSHORE' THEN 'WIND'
+      WHEN technology = 'CONTROLLABLE' THEN 'BIOGAS'
+      ELSE technology
+    END AS tech_group,
+    AVG(price__euro_per_mwh_) AS rmv_eur_per_mwh
+  FROM `flex-power.domain.fundamentals__reference_market_value__actual`
+  WHERE technology IN ('SOLAR', 'WIND_ONSHORE', 'CONTROLLABLE')
+  GROUP BY year, month, tech_group
+),
+
+dayahead_data AS(
+  SELECT hourly_data, dayaheadprice_eur_mwh,
+    EXTRACT(HOUR FROM hourly_data) AS houroftheday,
+    EXTRACT(DAY FROM hourly_data) AS day,
+    EXTRACT(MONTH FROM hourly_data) AS month,
+    EXTRACT(YEAR FROM hourly_data) AS year
+  FROM `flex-power.playground_sales.Dayaheadprice`
+),
+
+produce_data AS (
+  SELECT 
+    *,
+    EXTRACT(HOUR FROM delivery_start_berlin) AS houroftheday,
+    EXTRACT(DAY FROM delivery_start_berlin) AS day,
+    EXTRACT(MONTH FROM delivery_start_berlin) AS month,
+    EXTRACT(YEAR FROM delivery_start_berlin) AS year
+  FROM `flex-power.playground_sales.ACTUAL_PRODUCE_METER`
+),
+
+
+merge_1 as (
+SELECT 
+  a.delivery_start_berlin,
+  a.houroftheday,
+  a.day,
+  a.month,
+  a.year,
+
+  a.malo, 
+  a.quarterly_energy_kWh,
+  a.quarterly_energy_MWh,
+
+  b.rmv_eur_per_mwh,
+
+  a.technology,
+  a.park_id,
+  a.balancing_type,
+  a.tso,
+  a.contract_id,
+  a.name,
+  a.unit_id,
+
+FROM produce_data a
+  LEFT JOIN rmv_data b
+    ON a.year = b.year
+    AND a.month = b.month
+    AND a.technology = b.tech_group
+),
+
+rmv_dayahead_meter_data as (
+  SELECT
+    c.delivery_start_berlin,
+    c.houroftheday,
+    c.day,
+    c.month,
+    c.year,
+    c.malo,
+    c.quarterly_energy_kWh,
+    c.quarterly_energy_MWh,
+
+    d.dayaheadprice_eur_mwh,
+    c.rmv_eur_per_mwh,
+
+    c.technology,
+    c.park_id,
+    c.balancing_type,
+    c.tso,
+    c.contract_id,
+    c.name,unit_id
+  FROM merge_1 c
+    LEFT JOIN dayahead_data d
+    ON c.year = d.year
+    AND c.month = d.month
+    AND c.day = d.day
+    AND c.houroftheday = d.houroftheday
+)
+
+
+SELECT * FROM rmv_dayahead_meter_data
+
+
