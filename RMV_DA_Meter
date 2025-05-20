@@ -1,4 +1,4 @@
-WITH rmv_data AS (
+fWITH rmv_data AS (
   SELECT
     EXTRACT(YEAR FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS year,
     EXTRACT(MONTH FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS month,
@@ -95,3 +95,33 @@ rmv_dayahead_meter_data as (
 SELECT * FROM rmv_dayahead_meter_data
 
 
+
+
+
+
+
+
+
+
+
+
+SELECT 
+  month,
+  year,
+  malo,
+
+  quarterly_energy_kWh,
+  quarterly_energy_MWh,
+  dayaheadprice_eur_mwh,
+  rmv_eur_per_mwh,
+  payout_spot_eur,
+  payout_rmv_eur,
+
+  technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id,
+  
