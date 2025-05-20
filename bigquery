@@ -1,3 +1,17 @@
+# check whether each malo has two or more rows
+SELECT
+  malo,
+  delivery_start__utc_,
+  COUNT(*) AS row_count
+FROM `flex-power.domain.dso__infeed_and_offtake__measured_per_meter_point_latest`
+GROUP BY malo, delivery_start__utc_
+HAVING COUNT(*) > 1
+ORDER BY row_count DESC
+
+
+
+
+
 with monthly_produce_meter AS (
 SELECT 
   malo,
