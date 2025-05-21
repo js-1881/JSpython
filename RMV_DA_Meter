@@ -125,7 +125,9 @@ FROM join_produce_meter_park
 
 
 
-######### combining rmv, day ahead price, and actual production
+
+
+######### combining rmv, day ahead price, and actual production, PAYOUT and DELTA per QUARTER hour
 
 WITH rmv_data AS (
   SELECT
