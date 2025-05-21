@@ -1,4 +1,7 @@
-############ ACTUAL PRODUCE METER
+
+###### flex-power.playground_sales.ACTUAL_PRODUCE_METER_quarter
+############ ACTUAL PRODUCE METER quarter hour
+
 with monthly_produce_meter AS (
 SELECT 
   CAST(malo AS STRING) AS malo,
@@ -126,9 +129,9 @@ FROM join_produce_meter_park
 
 
 
-
+###### flex-power.playground_sales.rmv_dayahead_meter
 ######### combining rmv, day ahead price, and actual production, PAYOUT and DELTA per QUARTER hour
-
+-- rmv data
 WITH rmv_data AS (
   SELECT
     EXTRACT(YEAR FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS year,
@@ -145,6 +148,7 @@ WITH rmv_data AS (
   GROUP BY year, month, tech_group
 ),
 
+-- dayahead data
 dayahead_data AS(
   SELECT hourly_data, dayaheadprice_eur_mwh,
     EXTRACT(HOUR FROM hourly_data) AS houroftheday,
@@ -154,6 +158,8 @@ dayahead_data AS(
   FROM `flex-power.playground_sales.Dayaheadprice`
 ),
 
+
+-- actual produce meter quarter data
 produce_data AS (
   SELECT 
     *,
@@ -161,39 +167,24 @@ produce_data AS (
     EXTRACT(DAY FROM delivery_start_berlin) AS day,
     EXTRACT(MONTH FROM delivery_start_berlin) AS month,
     EXTRACT(YEAR FROM delivery_start_berlin) AS year
-  FROM `flex-power.playground_sales.ACTUAL_PRODUCE_METER`
+  FROM `flex-power.playground_sales.ACTUAL_PRODUCE_METER_quarter`
 ),
 
 
-merge_1 as (
-SELECT 
-  a.delivery_start_berlin,
-  a.houroftheday,
-  a.day,
-  a.month,
-  a.year,
-
-  a.malo, 
-  a.quarterly_energy_kWh,
-  a.quarterly_energy_MWh,
-
-  b.rmv_eur_per_mwh,
-
-  a.technology,
-  a.park_id,
-  a.balancing_type,
-  a.tso,
-  a.contract_id,
-  a.name,
-  a.unit_id,
-
-FROM produce_data a
-  LEFT JOIN rmv_data b
-    ON a.year = b.year
-    AND a.month = b.month
-    AND a.technology = b.tech_group
+-- merge 1 temp
+produce_with_rmv AS (
+  SELECT 
+    p.*,
+    r.rmv_eur_per_mwh
+  FROM produce_data p
+  LEFT JOIN rmv_data r
+    ON p.year = r.year
+    AND p.month = r.month
+    AND p.technology = r.tech_group
 ),
 
+
+-- merge data final = rmv, dayahead, production meter quarter
 rmv_dayahead_meter_data as (
   SELECT
     c.delivery_start_berlin,
@@ -213,8 +204,9 @@ rmv_dayahead_meter_data as (
     c.balancing_type,
     c.tso,
     c.contract_id,
-    c.name,unit_id
-  FROM merge_1 c
+    c.name,
+    c.unit_id
+  FROM produce_with_rmv c
     LEFT JOIN dayahead_data d
     ON c.year = d.year
     AND c.month = d.month
@@ -223,7 +215,117 @@ rmv_dayahead_meter_data as (
 )
 
 
-SELECT * FROM rmv_dayahead_meter_data
+-- payout rmv and spot, delta per quarter hour
+SELECT *,
+  (quarterly_energy_kWh * dayaheadprice_eur_mwh / 1000) as payout_spot_eur,
+  (quarterly_energy_kWh * rmv_eur_per_mwh / 1000) as payout_rmv_eur,
+
+  ((quarterly_energy_kWh * dayaheadprice_eur_mwh / 1000) - (quarterly_energy_kWh * rmv_eur_per_mwh / 1000)) as delta_spot_rmv,
+
+FROM rmv_dayahead_meter_data
+
+
+
+
+
+
+
+
+########## flex-power.playground_sales.monthly_agg_2024
+############### monthly aggregate 2024 + WEIGHTED monthly 
+WITH 
+malo_with_month_starts AS (
+  SELECT
+    malo,
+    DATE_TRUNC(DATE(delivery_start_berlin), MONTH) AS month_start
+  FROM `flex-power.playground_sales.rmv_dayahead_meter`
+  WHERE delivery_start_berlin BETWEEN '2024-01-01' AND '2024-12-31'
+    AND EXTRACT(DAY FROM delivery_start_berlin) = 1
+  GROUP BY malo, month_start
+),
+
+malo_full_year AS (
+  SELECT malo
+  FROM malo_with_month_starts
+  GROUP BY malo
+  HAVING COUNT(DISTINCT month_start) = 12
+),
+
+
+monthly_agg_2024 AS (
+SELECT 
+  month,
+  year,
+  malo,
+  SUM (quarterly_energy_kWh) as production_monthly_kwh,
+  SUM (quarterly_energy_MWh) as production_monthly_mwh,
+
+  SUM (payout_spot_eur) as payout_spot_eur,
+  SUM (payout_rmv_eur) as payout_rmv_eur,
+  SUM (delta_spot_rmv) as delta_spot_rmv,
+
+  -- some of the monthly production has zero production
+  SAFE_DIVIDE(SUM(delta_spot_rmv), NULLIF(SUM(quarterly_energy_MWh), 0)) AS delta_monthly_per_mwh,
+  
+  --(SUM (delta_spot_rmv)/SUM (quarterly_energy_MWh)) as delta_monthly_per_mwh,
+
+
+  technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id,
+
+FROM `flex-power.playground_sales.rmv_dayahead_meter`
+WHERE delivery_start_berlin BETWEEN '2024-01-01' AND '2024-12-31 23:59:59' 
+  AND malo IN (SELECT malo FROM malo_full_year)
+
+GROUP BY malo, month, year, technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id
+
+ORDER BY month, year
+),
+
+
+year_agg_2024 AS (
+  SELECT
+  malo,
+  year,
+  SUM (quarterly_energy_kWh) as production_YEAR_kwh,
+  SUM (quarterly_energy_MWh) as production_YEAR_mwh,
+
+FROM `flex-power.playground_sales.rmv_dayahead_meter`
+WHERE delivery_start_berlin BETWEEN '2024-01-01' AND '2024-12-31 23:59:59' 
+  AND malo IN (SELECT malo FROM malo_full_year)
+
+GROUP BY malo, year
+)
+
+
+
+SELECT 
+  m.*,
+  y.production_YEAR_mwh,
+  SAFE_DIVIDE(m.production_monthly_mwh, y.production_YEAR_mwh) * 100 AS percent_prod,
+  SAFE_MULTIPLY(
+    SAFE_MULTIPLY(
+      SAFE_DIVIDE(m.production_monthly_mwh, y.production_YEAR_mwh),
+      m.delta_monthly_per_mwh
+    ),
+    12
+  ) AS weighted_monthly_per_mwh
+
+FROM monthly_agg_2024 m
+LEFT JOIN year_agg_2024 y
+  ON m.malo = y.malo AND m.year = y.year
+--WHERE m.malo = '50676541079'
 
 
 
@@ -234,6 +336,190 @@ SELECT * FROM rmv_dayahead_meter_data
 
 
 
+
+#### flex-power.playground_sales.monthly_agg_last12months
+### monthly agg in the last 12 months from the current date regardless of year
+
+WITH 
+-- last 12 months' data using filtered malo on flex-power.playground_sales.filter_malo_last12months
+agg_last12months_monthly AS (
+SELECT 
+  month,
+  year,
+  malo,
+  SUM (quarterly_energy_kWh) as production_monthly_kwh,
+  SUM (quarterly_energy_MWh) as production_monthly_mwh,
+
+  SUM (payout_spot_eur) as payout_spot_eur,
+  SUM (payout_rmv_eur) as payout_rmv_eur,
+  SUM (delta_spot_rmv) as delta_spot_rmv,
+
+  -- some of the monthly production has zero production
+  SAFE_DIVIDE(SUM(delta_spot_rmv), NULLIF(SUM(quarterly_energy_MWh), 0)) AS delta_monthly_per_mwh,
+  
+  technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id,
+
+FROM `flex-power.playground_sales.rmv_dayahead_meter`
+
+-- using malo that have been filtered in `flex-power.playground_sales.filter_malo_last12months`
+WHERE malo IN (
+    SELECT malo
+    FROM `flex-power.playground_sales.filter_malo_last12months`
+  )
+  AND DATE(delivery_start_berlin) >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH)
+  AND DATE(delivery_start_berlin) < DATE_TRUNC(CURRENT_DATE(), MONTH)
+
+GROUP BY malo, month, year, technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id
+
+ORDER BY month, year
+),
+
+
+year_agg AS (
+  SELECT
+  malo,
+  year,
+  SUM (quarterly_energy_kWh) as production_YEAR_kwh,
+  SUM (quarterly_energy_MWh) as production_YEAR_mwh,
+
+FROM `flex-power.playground_sales.rmv_dayahead_meter`
+WHERE malo IN (
+    SELECT malo
+    FROM `flex-power.playground_sales.filter_malo_last12months`
+  )
+  AND DATE(delivery_start_berlin) >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH)
+  AND DATE(delivery_start_berlin) < DATE_TRUNC(CURRENT_DATE(), MONTH)
+
+GROUP BY malo, year
+)
+
+-- MONTHLY AGG last 12 months data 
+SELECT 
+  m.*,
+  y.production_YEAR_mwh,
+  SAFE_DIVIDE(m.production_monthly_mwh, y.production_YEAR_mwh) * 100 AS percent_prod,
+  SAFE_MULTIPLY(
+    SAFE_MULTIPLY(
+      SAFE_DIVIDE(m.production_monthly_mwh, y.production_YEAR_mwh),
+      m.delta_monthly_per_mwh
+    ),
+    12
+  ) AS weighted_monthly_per_mwh
+
+FROM agg_last12months_monthly m
+LEFT JOIN year_agg y
+  ON m.malo = y.malo AND m.year = y.year
+ORDER BY month, year desc
+
+
+
+
+
+
+
+
+######### flex-power.playground_sales.yearly_agg_weighted_result
+##### yearly weighted result per malo
+
+WITH
+-- AGG FOR 2024
+yearly_agg_weighted_result_2024 AS (
+SELECT 
+  year,
+  malo,
+  AVG (weighted_monthly_per_mwh) AS yearly_weighted_eur_per_mwh,
+  technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id
+FROM `flex-power.playground_sales.monthly_agg_2024`
+GROUP BY year, malo,technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id
+),
+
+
+-- AGG FOR PREVIOUS 12 MONTHS
+yearly_agg_weighted_result_last12months AS (
+SELECT 
+  --year,
+  malo,
+  AVG (weighted_monthly_per_mwh) AS yearly_weighted_eur_per_mwh,
+  technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id
+FROM `flex-power.playground_sales.monthly_agg_last12months`
+GROUP BY malo,technology,
+  park_id,
+  balancing_type,
+  tso,
+  contract_id,
+  name,
+  unit_id
+)
+
+-- yearly (last 12 months, regardless of year) agg for every malo 
+SELECT *
+  FROM `yearly_agg_weighted_result_last12months`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+SELECT DATETIME(CURRENT_TIMESTAMP(), "Europe/Berlin") AS berlin_now;
+SELECT CURRENT_DATETIME("Europe/Berlin") AS berlin_now;
+SELECT CURRENT_DATE("Europe/Berlin") AS berlin_now;
+
+
+
+
+50676541079
+5952 data
+05-2024
+
+WHERE malo = '50676541079'
 
 
 SELECT 
