@@ -1,4 +1,133 @@
-fWITH rmv_data AS (
+############ ACTUAL PRODUCE METER
+with monthly_produce_meter AS (
+SELECT 
+  CAST(malo AS STRING) AS malo,
+  EXTRACT(MONTH FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS month,
+  EXTRACT(YEAR FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS year,
+  SUM(measured_power__kw_ * 0.25) AS monthly_energy_kWh,
+  SUM(measured_power__kw_ * 0.25 / 1000) AS monthly_energy_MWh
+FROM `flex-power.domain.dso__infeed_and_offtake__measured_per_meter_point_latest` 
+GROUP BY malo, month, year
+),
+
+
+-- total 1036 unique malo 
+produce_meter_quarter AS (
+SELECT 
+  DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin') AS delivery_start_berlin,
+  CAST(malo AS STRING) AS malo,
+  SUM(measured_power__kw_ * 0.25) AS quarterly_energy_kWh,
+  SUM(measured_power__kw_ * 0.25 / 1000) AS quarterly_energy_MWh
+
+  /* 
+  EXTRACT(DAY FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS hour,
+  EXTRACT(MONTH FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS month,
+  EXTRACT(YEAR FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS year,
+  
+  */
+FROM `flex-power.domain.dso__infeed_and_offtake__measured_per_meter_point_latest` 
+GROUP BY malo, delivery_start_berlin
+),
+
+
+unique_malo_temp as (
+SELECT 
+    malo,
+    park_id,
+    technology,
+    balancing_type,
+    tso,
+    contract_id,
+    FIRST_VALUE(name) OVER (PARTITION BY malo ORDER BY name) AS name,
+    FIRST_VALUE(unit_id) OVER (PARTITION BY malo ORDER BY unit_id) AS unit_id
+  FROM `flex-power.domain.crm__assets__upgrid_units`
+  WHERE malo IS NOT NULL
+),
+
+
+unique_malo as (
+SELECT DISTINCT malo, park_id, technology, balancing_type, tso, contract_id, name, unit_id
+FROM unique_malo_temp
+),
+
+
+-- joining produce KWh and power plant data
+join_produce_meter_park AS (
+SELECT
+  a.*,
+  b.park_id,
+  b.technology,
+  b.balancing_type,
+  b.tso,
+  b.contract_id,
+  b.name,
+  b.unit_id
+FROM produce_meter_quarter a
+INNER JOIN unique_malo b
+ON a.malo = b.malo
+),
+
+
+-- 512 malo
+malo_atleast_one_year AS (
+  SELECT 
+    malo,
+    MIN(delivery_start_berlin) AS earliest_berlin_time,
+    MAX(delivery_start_berlin) AS latest_berlin_time,
+    TIMESTAMP_DIFF(
+      MAX(delivery_start_berlin),
+      MIN(delivery_start_berlin),
+      MONTH
+    ) AS months_of_data
+  FROM produce_meter_quarter
+  GROUP BY malo
+  HAVING TIMESTAMP_DIFF(
+      MAX(delivery_start_berlin),
+      MIN(delivery_start_berlin),
+      MONTH
+    ) >= 12
+  ORDER BY earliest_berlin_time
+),
+
+
+-- testing new code, every 1st day of the month has value: 357 data as well # checked
+malo_with_month_starts AS (
+  SELECT
+    malo,
+    DATE_TRUNC(DATE(delivery_start_berlin), MONTH) AS month_start
+  FROM `flex-power.playground_sales.rmv_dayahead_meter`
+  WHERE delivery_start_berlin BETWEEN '2024-01-01' AND '2024-12-31'
+    AND EXTRACT(DAY FROM delivery_start_berlin) = 1
+  GROUP BY malo, month_start
+),
+
+malo_full_2024 AS (
+  SELECT malo
+  FROM malo_with_month_starts
+  GROUP BY malo
+  HAVING COUNT(DISTINCT month_start) = 12
+)
+
+/*
+SELECT DISTINCT a.malo
+FROM produce_meter_quarter a
+LEFT JOIN unique_malo b
+ON a.malo = b.malo
+WHERE b.malo IS NULL
+*/
+
+SELECT
+   *
+FROM join_produce_meter_park
+
+
+
+
+
+
+######### combining rmv, day ahead price, and actual production
+
+WITH rmv_data AS (
   SELECT
     EXTRACT(YEAR FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS year,
     EXTRACT(MONTH FROM DATETIME(TIMESTAMP(delivery_start__utc_), 'Europe/Berlin')) AS month,
