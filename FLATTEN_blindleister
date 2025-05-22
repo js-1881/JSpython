@@ -1,0 +1,53 @@
+import requests 
+import pandas as pd
+import numpy as np
+import json
+import os
+import ast  # To safely convert stringified list of dicts
+
+
+# Load the file (replace with your filename)
+df = pd.read_csv("SEE900263539456.csv")
+
+# Prepare an empty list for flattened records
+flattened_rows = []
+
+# Loop over each row (each year-level entry)
+for _, row in df.iterrows():
+    # Extract the common fields
+    year = row['year']
+    unit_id = row['unit_mastr_id']
+    gross_power_kw = row['gross_power_kw']
+    energy_source = row['energy_source']
+    annual_energy_mwh = row['annual_generated_energy_mwh']
+    benchmark_price_eur_mwh = row['benchmark_market_price_eur_mwh']
+
+    # Convert 'months' from string to list of dicts (if needed)
+    months = row['months']
+    if isinstance(months, str):
+        months = ast.literal_eval(months)
+
+    # Flatten each month's data into a new row
+    for month_data in months:
+        flattened_rows.append({
+            'year': year,
+            'unit_mastr_id': unit_id,
+            'gross_power_kw': gross_power_kw,
+            'energy_source': energy_source,
+            'annual_generated_energy_mwh': annual_energy_mwh,
+            'benchmark_market_price_eur_mwh': benchmark_price_eur_mwh,
+            'month': month_data.get('month'),
+            'monthly_generated_energy_mwh': month_data.get('monthly_generated_energy_mwh'),
+            'monthly_energy_contribution_percent': month_data.get('monthly_energy_contribution_percent'),
+            'monthly_market_price_eur_mwh': month_data.get('monthly_market_price_eur_mwh'),
+            'monthly_reference_market_price_eur_mwh': month_data.get('monthly_reference_market_price_eur_mwh'),
+        })
+
+# Create the final DataFrame
+df_flat = pd.DataFrame(flattened_rows)
+
+# Preview result
+print(df_flat)
+
+# Optional: save to Excel
+# df_flat.to_excel("flattened_market_data.xlsx", index=False)
