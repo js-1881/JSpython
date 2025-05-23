@@ -1,0 +1,62 @@
+WITH invoice_latest_version AS (
+SELECT*
+FROM(SELECT *,
+ROW_NUMBER() OVER (PARTITION BY invoice_date, malo, string_field_0 ORDER BY version DESC) AS rn 
+FROM `flex-power.app__invoicing.invoicing__r2m__output_exported_per_malo`
+)
+WHERE rn = 1),
+
+volume AS (
+SELECT
+invoice_date,
+malo,
+Entgelt_Vermarktung AS total_volume__kwh_,
+Gutschrift_Abschaltung_Flextra AS flextra_volume__kwh_
+FROM invoice_latest_version
+WHERE string_field_0 = "Menge"),
+
+total_net_eur AS (
+    SELECT
+invoice_date,
+malo,
+ROUND((COALESCE(Gutschrift_Redispatch,0)+COALESCE(Gutschrift_Einspeisung,0)+COALESCE(Gutschrift_Abschaltung,0)),2)   AS total_net__eur_
+FROM invoice_latest_version
+WHERE string_field_0 = "Nettobetrag"
+),
+total_flextra_eur AS (
+    SELECT
+invoice_date,
+malo,
+Gutschrift_Abschaltung_Flextra   AS flextra_net__eur_
+FROM invoice_latest_version
+WHERE string_field_0 = "Nettobetrag"
+),
+merged AS (
+
+SELECT volume.*,
+total_net_eur.total_net__eur_,
+total_flextra_eur.flextra_net__eur_
+FROM volume LEFT JOIN total_net_eur ON volume.invoice_date = total_net_eur.invoice_date AND volume.malo = total_net_eur.malo
+LEFT JOIN total_flextra_eur ON volume.invoice_date = total_flextra_eur.invoice_date AND volume.malo = total_flextra_eur.malo
+),
+monthly_agg AS (
+
+SELECT invoice_date,
+SUM(total_volume__kwh_) AS total_volume__kwh_,
+SUM(flextra_volume__kwh_) AS flextra_volume__kwh_,
+SUM(total_net__eur_) AS total_net__eur_,
+SUM(flextra_net__eur_) AS flextra_net__eur_
+
+FROM merged
+GROUP BY invoice_date)
+
+SELECT 
+invoice_date,
+ROUND(total_volume__kwh_,2) AS total_volume__kwh_,
+ROUND(flextra_volume__kwh_,2) AS flextra_volume__kwh,
+ROUND((total_net__eur_+flextra_net__eur_ )*100/ total_volume__kwh_,4) AS price_mit_flextra__cents_kwh_,
+ROUND(total_net__eur_*100/ total_volume__kwh_,4) AS price_ohne_flextra__cents_kwh_,
+ROUND(ROUND((total_net__eur_+flextra_net__eur_ )*100/ total_volume__kwh_,4) - ROUND(total_net__eur_*100/ total_volume__kwh_,4),4) AS price_diff__cents_kwh_
+FROM monthly_agg
+ORDER BY
+invoice_date
