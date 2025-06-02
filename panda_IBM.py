@@ -622,7 +622,8 @@ df.apply(np.mean, axis=0)                   # Column-wise mean
 df.to_csv('output.csv', index=False)
 df.to_excel('output.xlsx', index=False)
 
-
+# showing all the duplicate rows 
+df_source[df_source.duplicated('time_berlin', keep=False)].head(20)
 df.duplicated().sum()           # Count duplicate rows
 df.drop_duplicates(inplace=True)
 
