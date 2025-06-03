@@ -1,7 +1,8 @@
 print(df_main[df_main['Final_Hersteller'] == 'Enercon'].loc[lambda df: df.isna().any(axis=1)])
 print(df_main[df_main[['Anlagenhersteller', 'Final_Hersteller']].isna().any(axis=1)])
 
-
+nan_rows = custom_blind_excel_malo_keepfirst[custom_blind_excel_malo_keepfirst.isna().any(axis=1)]
+see_nan = custom_blind_excel_malo_keepfirst[custom_blind_excel_malo_keepfirst['unit_mastr_id'].isna()]
 
 
 📈 Sum payout SPOT yearly: 2151553.625 EUR
