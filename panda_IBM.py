@@ -1,3 +1,9 @@
+print(df_main[df_main['Final_Hersteller'] == 'Enercon'].loc[lambda df: df.isna().any(axis=1)])
+print(df_main[df_main[['Anlagenhersteller', 'Final_Hersteller']].isna().any(axis=1)])
+
+
+
+
 📈 Sum payout SPOT yearly: 2151553.625 EUR
 📉 Min payout SPOT: -471.938 EUR
 📈 Max payout SPOT: 5581.165 EUR
