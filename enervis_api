@@ -198,3 +198,158 @@ if __name__ == "__main__":
 
     import json
     print(json.dumps(job_info['info'], indent=2))
+
+
+
+
+
+
+
+
+import pandas as pd
+import requests
+import time
+
+# --- Config ---
+EMAIL = "your_email"
+PASSWORD = "your_password"
+INPUT_FILE = "turbine_input.xlsx"  # or .csv
+
+# --- Auth ---
+def get_token():
+    url = "https://keycloak.anemosgmbh.com/auth/realms/awis/protocol/openid-connect/token"
+    data = {
+        'client_id': 'webtool_vue',
+        'grant_type': 'password',
+        'username': EMAIL,
+        'password': PASSWORD
+    }
+    response = requests.post(url, data=data)
+    response.raise_for_status()
+    return response.json()['access_token']
+
+# --- Get hist-ondemand product ID ---
+def get_historical_product_id(token):
+    url = "https://api.anemosgmbh.com/products_mva"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    products = response.json()
+    for p in products:
+        name = p["mva_product_type"]["name"]
+        if "hist-ondemand" in name.lower():
+            return p["id"]
+    raise Exception("No 'hist-ondemand' product found.")
+
+# --- Submit job ---
+def start_historical_job(token, product_id, lat, lon, turbine_type_id, hub_height, custom_id):
+    url = "https://api.anemosgmbh.com/jobs"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "mva_product_id": product_id,
+        "parameters": {
+            "parkinfo": [{
+                "id": custom_id,
+                "lat": str(lat),
+                "lon": str(lon),
+                "turbine_type_id": turbine_type_id,
+                "hub_height": int(hub_height)
+            }]
+        }
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()["uuid"]
+
+# --- Wait for job completion ---
+def wait_for_job_completion(token, job_uuid, poll_interval=10):
+    url = f"https://api.anemosgmbh.com/jobs/{job_uuid}"
+    while True:
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        job_info = response.json()
+        if isinstance(job_info, list):
+            job_info = job_info[0]
+        status = job_info.get("status")
+        print(f"Job {job_uuid} status: {status}")
+        if status in ["DONE", "COMPLETED"]:
+            return job_info
+        elif status in ["FAILED", "CANCELED"]:
+            raise Exception(f"Job {job_uuid} failed or was canceled.")
+        time.sleep(poll_interval)
+
+# --- Download results ---
+def download_result_files(job_info, token):
+    results = job_info.get("info", {}).get("results", [])
+    if results:
+        dfs = []
+        for result in results:
+            turbine_id = result.get("id")
+            year_data = result.get("Marktwertdifferenzen")
+            if year_data:
+                df = pd.DataFrame.from_dict(year_data, orient="index", columns=["Marktwertdifferenz"])
+                df.index.name = "Year"
+                df = df.reset_index()
+                df["id"] = turbine_id
+                dfs.append(df)
+        return pd.concat(dfs, ignore_index=True) if dfs else None
+    return None
+
+# --- MAIN LOOP ---
+if __name__ == "__main__":
+    try:
+        print("🔐 Getting access token...")
+        token = get_token()
+
+        print("📦 Getting product ID...")
+        product_id = get_historical_product_id(token)
+
+        print("📄 Reading turbine input...")
+        df_input = pd.read_excel(INPUT_FILE)
+
+        all_results = []
+
+        for _, row in df_input.iterrows():
+            print(f"\n🚀 Processing turbine ID {row['id']}...")
+            uuid = start_historical_job(
+                token=token,
+                product_id=product_id,
+                lat=row["lat"],
+                lon=row["lon"],
+                turbine_type_id=row["turbine_type_id"],
+                hub_height=row["hub_height"],
+                custom_id=int(row["id"])
+            )
+
+            job_info = wait_for_job_completion(token, uuid)
+            df_result = download_result_files(job_info, token)
+            if df_result is not None:
+                all_results.append(df_result)
+
+        if all_results:
+            final_df = pd.concat(all_results, ignore_index=True)
+            output_file = "enervis_results.xlsx"
+            final_df.to_excel(output_file, index=False)
+            print(f"\n✅ All results saved to {output_file}")
+        else:
+            print("❌ No results to save.")
+
+    except Exception as e:
+        print(f"\n❌ Error occurred: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
