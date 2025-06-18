@@ -1,0 +1,200 @@
+import requests
+import time
+from io import StringIO
+import pandas as pd
+
+# --- Configuration ---
+EMAIL = "amani@flex-power.energy"        # <- replace with your real Enervis email
+PASSWORD = "ypq_CZE2wpg*jgu7hfk"         # <- replace with your password
+LATITUDE = "52.79313"                      # Example: Berlin latitude
+LONGITUDE = "10.71809"                    # Example: Berlin longitude
+TURBINE_TYPE_ID = 11      # Replace with actual turbine_type_id from Enervisimport
+HUB_HEIGHT = 120                      # Replace with desired hub height in meters
+
+
+# --- Step 1: Get access token ---
+def get_token():
+    url = "https://keycloak.anemosgmbh.com/auth/realms/awis/protocol/openid-connect/token"
+    data = {
+        'client_id': 'webtool_vue',
+        'grant_type': 'password',
+        'username': EMAIL,
+        'password': PASSWORD
+    }
+    response = requests.post(url, data=data)
+    
+    # Debug output
+    print("Status code:", response.status_code)
+    print("Response:", response.text)
+    
+    response.raise_for_status()
+    return response.json()['access_token']
+
+
+# --- Step 2: Get historical On-Demand product ID ---
+def get_historical_product_id(token):
+    url = "https://api.anemosgmbh.com/products_mva"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    products = response.json()
+
+    print("\n📦 Available products:")
+    for p in products:
+        product_type_name = p["mva_product_type"]["name"]
+        print(f"- ID: {p['id']}, Name: {product_type_name}")
+        if "hist-ondemand" in product_type_name.lower():
+            print(f"✅ Found 'hist-ondemand' product.")
+            return p["id"]
+
+    raise Exception("❌ No 'hist-ondemand' product found.")
+
+
+def list_turbine_types(token):
+    url = "https://api.anemosgmbh.com/turbine_types"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    types = response.json()
+    print("\n🌀 Available turbine types:")
+    for t in types:
+        print(f"- ID: {t['id']}, Name: {t.get('name', 'n/a')}")
+
+    df = pd.DataFrame(types)
+    filename = r"C:\Users\jerry\OneDrive - Institut Teknologi Bandung\cover letter\flexpower\python API\turbine_types_id_enervis.xlsx"
+    df.to_excel(filename, index=False)
+    print(f"✅ Turbine types saved to {filename}")
+
+    return types
+
+token = get_token()
+list_turbine_types(token)
+
+
+# --- Step 3: Start the historical On-Demand job ---
+def start_historical_job(token, product_id, lat, lon, turbine_type_id, hub_height):
+    url = "https://api.anemosgmbh.com/jobs"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "mva_product_id": product_id,
+        "parameters": {
+            "parkinfo": [{
+                "id": 2424,
+                "lat": str(lat),
+                "lon": str(lon),
+                "turbine_type_id": turbine_type_id,
+                "hub_height": int(hub_height)
+            }]
+        }
+    }
+
+    print("\n📤 Sending payload:")
+    print(payload)
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code != 200:
+        print("\n❌ API responded with:")
+        print(response.text)
+        response.raise_for_status()
+
+    resp_json = response.json()
+    return resp_json["uuid"]
+
+# --- Step 4: Poll the job status until complete ---
+def wait_for_job_completion(token, job_uuid, poll_interval=10):
+    url = f"https://api.anemosgmbh.com/jobs/{job_uuid}"
+    
+    while True:
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 401:
+            # Token expired - get new token and retry once
+            print("Token expired, refreshing token...")
+            token = get_token()
+            headers = {"Authorization": f"Bearer {token}"}
+            response = requests.get(url, headers=headers)
+
+        response.raise_for_status()
+        job_info = response.json()
+
+        if isinstance(job_info, list):
+            job_info = job_info[0]
+
+        status = job_info.get("status")
+        print(f"Job status: {status}")
+
+        if status == "DONE" or status == "COMPLETED":
+            return job_info
+        elif status in ["FAILED", "CANCELED"]:
+            raise Exception(f"Job ended with status: {status}")
+
+        time.sleep(poll_interval)
+
+
+# --- Step 5: Download result files and load them into DataFrames ---
+def download_result_files(job_info, token):
+    headers = {"Authorization": f"Bearer {token}"}
+    files = job_info.get("files")
+
+    if files:
+        dfs = []
+        for f in files:
+            file_url = f.get("url")
+            print(f"📥 Downloading result file: {file_url}")
+            df = download_and_load_csv(file_url, token)
+            dfs.append(df)
+        return dfs
+    else:
+        print("❌ No result files found — checking 'info' field...")
+        results = job_info.get("info", {}).get("results", [])
+        
+        if results:
+            dfs = []
+            for result in results:
+                turbine_id = result.get("id")
+                year_data = result.get("Marktwertdifferenzen")
+                if year_data:
+                    df = pd.DataFrame.from_dict(year_data, orient="index", columns=["Marktwertdifferenz"])
+                    df.index.name = "Year"
+                    df = df.reset_index()            
+                    df["id"] = turbine_id           
+                    dfs.append(df)
+                    print("📊 Extracted results from 'info':")
+                    print(df)
+                else:
+                    print("❌ No 'Marktwertdifferenzen' found in result.")
+            return dfs if dfs else None
+        else:
+            print("❌ No usable results found in 'info'.")
+            return None
+
+
+# --- Main workflow ---
+if __name__ == "__main__":
+    try:
+        print("🔐 Getting access token...")
+        token = get_token()
+        
+        print("📦 Getting historical product ID...")
+        product_id = get_historical_product_id(token)
+        
+        print("🚀 Starting historical On-Demand job...")
+        job_uuid = start_historical_job(token, product_id, LATITUDE, LONGITUDE, TURBINE_TYPE_ID, HUB_HEIGHT)
+        print(f"✅ Job started with UUID: {job_uuid}")
+        
+        print("⏳ Waiting for job completion...")
+        job_info = wait_for_job_completion(token, job_uuid)
+        
+        print("📁 Job finished! Getting result files...")
+        download_result_files(job_info, token)
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+    import json
+    print(json.dumps(job_info['info'], indent=2))
