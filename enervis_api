@@ -172,6 +172,7 @@ def download_result_files(job_info, token):
         else:
             print("❌ No usable results found in 'info'.")
             return None
+        
 
 
 # --- Main workflow ---
@@ -191,13 +192,31 @@ if __name__ == "__main__":
         job_info = wait_for_job_completion(token, job_uuid)
         
         print("📁 Job finished! Getting result files...")
-        download_result_files(job_info, token)
+        dfs = download_result_files(job_info, token)
+
+        all_df = pd.concat(dfs, ignore_index=True)
+
+        # Filter only years 2021, 2023, 2024
+        filtered = all_df[all_df["Year"].astype(str).isin(["2021", "2023", "2024"])]
+
+        # Compute average Marktwertdifferenz per turbine id
+        avg_df = (
+            filtered
+            .groupby("id")["Marktwertdifferenz"]
+            .mean()
+            .reset_index()
+            .rename(columns={"Marktwertdifferenz": "average"})
+        )
+
+        print("\n📊 Average Marktwertdifferenz for 2021, 2023, 2024:")
+        print(avg_df)
 
     except Exception as e:
         print(f"❌ Error: {e}")
 
     import json
     print(json.dumps(job_info['info'], indent=2))
+
 
 
 
