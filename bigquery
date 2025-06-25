@@ -82,206 +82,80 @@ ORDER BY year, month
 
 
 
-
-with combine_asset as (
-  SELECT *,
-  EXTRACT(HOUR FROM Datetime) AS houroftheday,
-  EXTRACT(MONTH FROM Datetime) AS month,
-  EXTRACT(DAY FROM Datetime) AS day,
-  GREATEST(Active_power_MWh, 0) AS Active_power_MWh_filled,
-  turbine_ID
-  FROM flex-power.playground_sales.df_combined
-),
-
-combine_asset_sum as (
-  SELECT Datetime, houroftheday,
-  month,
-  day,
-  SUM (Active_power_MWh_filled) as ACTIVE_POWER_SUM
-  from combine_asset
-  GROUP BY Datetime, day, month, houroftheday
-),
-
-DAprice as (
-  SELECT *,
-  EXTRACT(HOUR FROM hour) AS houroftheday,
-  EXTRACT(MONTH FROM hour) AS month,
-  EXTRACT(DAY FROM hour) AS day
-
-FROM flex-power.playground_sales.Dayaheadprice
-WHERE hour >= '2024-01-01' AND hour < '2025-01-01'
-),
-
-RMVprice as (
-  SELECT *
-  FROM flex-power.playground_sales.df_RMV
-),
-
-
-fulldata_temp as (
-SELECT
-  t.Datetime,
-  t.ACTIVE_POWER_SUM,
-  t.houroftheday,
-  t.day,
-  t.month,               -- use t.month instead of p.month
-  p.dayaheadprice
-FROM combine_asset_sum t
-LEFT JOIN DAprice p
-ON t.day = p.day AND t.month = p.month AND t.houroftheday = p.houroftheday
-),
-
-
-fulldata AS (
-  SELECT
-    a.Datetime,
-    a.ACTIVE_POWER_SUM,
-    a.houroftheday,
-    a.day,
-    a.month,
-    a.dayaheadprice,
-    r.RMV_2024_EURMWh
-  FROM fulldata_temp a
-  LEFT JOIN RMVprice r
-    ON a.month = r.month
-),
-
-
-spot_payout as (
-SELECT
-  Datetime,
-  houroftheday,
-  day,
-  month,
-  ACTIVE_POWER_SUM,
-  dayaheadprice,
-  RMV_2024_EURMWh,
-  (ACTIVE_POWER_SUM * dayaheadprice) AS PayOut_HourlySpot,
-  (RMV_2024_EURMWh * ACTIVE_POWER_SUM) AS Payout_RMV,
-  FROM fulldata
-  WHERE Datetime >= '2019-01-01' AND Datetime < '2020-01-01'
-),
-
-spot_payout_group AS (
-  SELECT 
-    month,
-    SUM(PayOut_HourlySpot) AS total_spot_payout,
-    SUM(Payout_RMV) AS total_rmv_payout
-  FROM spot_payout
-  GROUP BY month
-)
-
-SELECT 
-  month,
-  SUM(total_spot_payout) AS total_spot_payout,
-  SUM(total_rmv_payout) AS total_rmv_payout
-FROM spot_payout_group
-GROUP BY GROUPING SETS ((month), ())
-ORDER BY month
-
-
- /* 
-SELECT * FROM spot_payout
-ORDER BY Datetime
-*/
-
-
-
-
-
-
-
-
-,
-
-
-DAprice_RMV AS (
-  SELECT
-  d.*,
-  r.
-
-
-)
-
-
-WITH contract_data AS (
+WITH contract_dates AS (
   SELECT
     malo,
-    DATE(contract_start) AS contract_start_date
-  FROM `project.dataset.contract_table`
+    DATE(contract_start) AS contract_start,
+    DATE(contract_end) AS contract_end
+  FROM `flex-power.sources.crm__latest_contracts_and_units_monday_board`
 ),
 
--- Expand all months starting from contract_start per malo
-calendar_months AS (
+-- Generate one row per month per malo between contract_start and contract_end
+calendar AS (
   SELECT
-    malo,
-    FORMAT_DATE('%Y-%m-01', month) AS month_start
-  FROM contract_data,
-  UNNEST(GENERATE_DATE_ARRAY(contract_start_date, CURRENT_DATE(), INTERVAL 1 MONTH)) AS month
+    c.malo,
+    DATE_TRUNC(DATE_ADD(c.contract_start, INTERVAL m MONTH), MONTH) AS month
+  FROM contract_dates c,
+  UNNEST(GENERATE_ARRAY(
+    0,
+    TIMESTAMP_DIFF(c.contract_end, c.contract_start, MONTH)
+  )) AS m
 ),
 
--- Expected intervals = days in month × 96 quarter-hours
-expected_counts AS (
+-- Count available records per month and malo for each column
+energy_status AS (
   SELECT
-    cm.malo,
-    cm.month_start,
-    DATE(cm.month_start) AS month_date,
-    DATE_ADD(DATE(cm.month_start), INTERVAL 1 MONTH) AS next_month,
-    DATE_DIFF(DATE_ADD(DATE(cm.month_start), INTERVAL 1 MONTH), DATE(cm.month_start), DAY) * 96 AS expected_intervals
-  FROM calendar_months cm
+    e.malo,
+    DATE_TRUNC(e.delivery_start_berlin, MONTH) AS month,
+    COUNTIF(e.curtailment_kWh IS NOT NULL) AS curtailment_count,
+    COUNTIF(e.quarterly_energy_kWh IS NOT NULL) AS quarterly_energy_count,
+    COUNTIF(e.redispatch_kWh IS NOT NULL) AS redispatch_count
+  FROM `flex-power.playground_sales.rmv_dayahead_meter` e
+  GROUP BY e.malo, month
 ),
 
--- Count non-null values for each column by malo and month
-actual_data AS (
+-- Join calendar with energy counts to fill gaps
+merged AS (
   SELECT
-    malo,
-    DATE_TRUNC(DATE(delivery_start_berlin), MONTH) AS month_date,
-    COUNTIF(curtailment_kWh IS NOT NULL) AS curtailment_present,
-    COUNTIF(quarterly_energy_kWh IS NOT NULL) AS quarterly_energy_present,
-    COUNTIF(redispatch_kWh IS NOT NULL) AS redispatch_present
-  FROM `project.dataset.energy_data`
-  WHERE delivery_start_berlin IS NOT NULL
-  GROUP BY malo, month_date
+    cal.malo,
+    cal.month,
+    IFNULL(es.curtailment_count, 0) AS curtailment_count,
+    IFNULL(es.quarterly_energy_count, 0) AS quarterly_energy_count,
+    IFNULL(es.redispatch_count, 0) AS redispatch_count
+  FROM calendar cal
+  LEFT JOIN energy_status es
+    ON cal.malo = es.malo AND cal.month = es.month
 ),
 
--- Combine and flag per column
+-- Classify each column by data completeness
 final_status AS (
   SELECT
-    ec.malo,
-    ec.month_date,
-    ec.expected_intervals,
-    
-    COALESCE(ad.curtailment_present, 0) AS curtailment_present,
-    COALESCE(ad.quarterly_energy_present, 0) AS quarterly_energy_present,
-    COALESCE(ad.redispatch_present, 0) AS redispatch_present,
+    malo,
+    FORMAT_DATE('%Y-%m', month) AS year_month,
 
     CASE
-      WHEN ad.curtailment_present IS NULL THEN 'NO DATA AT ALL'
-      WHEN ad.curtailment_present = ec.expected_intervals THEN 'Complete'
-      WHEN ad.curtailment_present > 0 THEN 'half full'
+      WHEN curtailment_count >= 2688 THEN 'Complete' --28 days of full data each month
+      WHEN curtailment_count BETWEEN 1 AND 2687 THEN 'half full'
       ELSE 'NO DATA AT ALL'
     END AS curtailment_status,
 
     CASE
-      WHEN ad.quarterly_energy_present IS NULL THEN 'NO DATA AT ALL'
-      WHEN ad.quarterly_energy_present = ec.expected_intervals THEN 'Complete'
-      WHEN ad.quarterly_energy_present > 0 THEN 'half full'
+      WHEN quarterly_energy_count >= 2688 THEN 'Complete' --28 days of full data each month
+      WHEN quarterly_energy_count BETWEEN 1 AND 2687 THEN 'half full'
       ELSE 'NO DATA AT ALL'
     END AS quarterly_energy_status,
 
     CASE
-      WHEN ad.redispatch_present IS NULL THEN 'NO DATA AT ALL'
-      WHEN ad.redispatch_present = ec.expected_intervals THEN 'Complete'
-      WHEN ad.redispatch_present > 0 THEN 'half full'
+      WHEN redispatch_count >= 2688 THEN 'Complete' --28 days of full data each month
+      WHEN redispatch_count BETWEEN 1 AND 2687 THEN 'half full'
       ELSE 'NO DATA AT ALL'
     END AS redispatch_status
 
-  FROM expected_counts ec
-  LEFT JOIN actual_data ad
-    ON ec.malo = ad.malo AND ec.month_date = ad.month_date
+  FROM merged
 )
 
 SELECT *
 FROM final_status
-ORDER BY malo, month_date;
-
+WHERE year_month <= FORMAT_DATE('%Y-%m', CURRENT_DATE())
+  --AND malo = '50439289254'
+ORDER BY malo, year_month;
